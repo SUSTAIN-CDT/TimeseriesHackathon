@@ -1,0 +1,262 @@
+\documentclass[aspectratio=169]{beamer}
+%% --------------------------------------------------------------------
+%%  1.  Choose the Berlin theme
+%% --------------------------------------------------------------------
+\usetheme{Berlin}
+\usecolortheme{spruce}
+\setbeamertemplate{caption}[numbered]
+
+
+%% ------------------------------------------------------------
+%% 2.  Optional packages
+%% ------------------------------------------------------------
+\usepackage{graphicx}
+\usepackage{xcolor}            %  for custom colours
+\usepackage[backend=biber, style=apa]{biblatex}
+\usepackage{hyperref}
+\usepackage[capitalise]{cleveref}
+\usepackage[]{subcaption} % For subfigures environments https://tex.stackexchange.com/a/282878
+\usepackage[]{caption}
+\usepackage{tabularray}
+\usepackage[normalem]{ulem}
+\usepackage{qrcode}
+
+
+\addbibresource{main.bib}
+\renewcommand*{\bibfont}{\scriptsize}
+
+%% --------------------------------------------------------------------
+%%  3.  Define your logos (change file names / paths) --------------------
+%% --------------------------------------------------------------------
+% Height of the logos in the footer (you can tweak it).
+\newcommand{\logoheight}{4ex}
+\newcommand{\logoboxheight}{4.1ex}
+
+%% --------------------------------------------------------------------
+%%  4.  Build a custom footline -----------------------------------------
+%% --------------------------------------------------------------------
+% The Berlin theme already sets a footline.  We override it here.
+\setbeamertemplate{footline}
+{
+    % Use a frame with a small vertical offset.
+    \leavevmode%
+    \hbox{%
+        \begin{beamercolorbox}[wd=\paperwidth,
+                               ht=\logoboxheight,
+                               dp=0.75ex]{footline}
+            % Left logo
+            \hfill
+            \includegraphics[height=\logoheight]{media/ukri.pdf}%
+            % Right logo
+            \hfill%
+            \includegraphics[height=\logoheight]{media/sustain.pdf}%
+            \hfill
+            \includegraphics[height=\logoheight]{media/uol.png}%
+            \hfill
+            \includegraphics[height=\logoheight]{media/aberdeen.png}%
+            \hfill
+            \includegraphics[height=\logoheight]{media/qub.png}%
+            \hfill
+            \includegraphics[height=\logoheight]{media/uos.png}%
+            \hfill
+            % Optional: slide number on the far right
+            % \hfill\insertframenumber/\inserttotalframenumber%
+            \hfill%
+        \end{beamercolorbox}%
+    }%
+}
+% If you want the page numbers to appear as usual, uncomment the line
+% above that prints \insertframenumber.  If you want the numbers
+% centered between the logos, use the following line instead:
+%   \hfill\insertframenumber/\inserttotalframenumber\hfill
+%% --------------------------------------------------------------------
+%%  5.  Optional: adjust the height of the footline --------------------
+%% --------------------------------------------------------------------
+% The default Berlin footline height is 2.5ex; if you need more room
+% for your logos you can increase it, e.g.:
+% \setbeamercolor{footline}{}
+% \setbeamersize{footlineheight=3.5ex}
+%% --------------------------------------------------------------------
+%%  6.  Document title (short title is used in the footline) ------------
+%% --------------------------------------------------------------------
+\title{Group 4 SUSTAIN CDT Time Series Hackathon}
+\author{James~Barnard \and Lauren~Gilman \and Adam~Hale \and Villanelle~O'Reilly \and Maddison~Parkhouse}
+\institute{Authors listed in order of last name.}
+\date{April 24\textsuperscript{th}, 2026}
+%% --------------------------------------------------------------------
+%%  7.  Begin the document ---------------------------------------------
+%% --------------------------------------------------------------------
+\begin{document}
+% Title page (Berlin will put the logo at the top left)
+\frame{\titlepage}
+
+    \section{Data Processing}
+
+    \begin{frame}
+        \frametitle{Data Quality \& Integrity Issues}
+        \begin{itemize}
+            \item \textbf{Severe Data Attrition:} The raw dataset contains 169,386 records, but only 44,135 rows survive the merging process---a massive \textbf{$\sim$74\% data loss}.
+            \item \textbf{Geographical Mismatches:} This attrition is primarily driven by uneven country coverage across the source files. Crop data covers 270 countries, rainfall covers 217, and temperature data covers only 137. 
+            \item \textbf{Temporal Gaps Root Cause:} The years \textbf{1988} and \textbf{2003} are completely absent from the final timeline because they are missing directly from the source \texttt{rainfall.csv} file.
+            \item \textbf{Data Type Anomalies:} The \textit{average\_rain\_fall} column introduces mixed data types (strings instead of floats) during the merge, requiring coercion/cleaning before modeling.
+            \item \textbf{Validation Strategy:} Implemented a chronological split on the surviving rows:
+            \begin{itemize}
+                \item \textbf{Training Set ($<$ 2009):} 35,749 rows (81\% of data).
+                \item \textbf{Test/Validation Set ($\ge$ 2009):} 8,386 rows (19\% of data).
+            \end{itemize}
+        \end{itemize}
+    \end{frame}
+
+    \section{Results}
+
+    \begin{frame}
+        \frametitle{Model Performance}
+        \begin{itemize}
+            \item \textbf{R-Squared ($R^2$):} 0.8941
+            \begin{itemize}
+                \item The model is highly explanatory, successfully capturing \textbf{89.4\%} of the variance in crop yields across the validation set.
+            \end{itemize}
+            \vspace{0.3cm} % Adds a little vertical spacing between points
+            \item \textbf{Mean Absolute Error (MAE):} 16,397 kg/ha
+            \begin{itemize}
+                \item On average, our predictions deviate by roughly 16.4k kilograms per hectare from the true observed yields.
+            \end{itemize}
+            \vspace{0.3cm}
+            \item \textbf{Baseline Context \& Relative Error:} 
+            \begin{itemize}
+                \item The global average yield across the dataset is \textbf{74,706.46 kg/ha}.
+                \item Contextually, our MAE represents an average relative error of just \textbf{$\sim$22\%} ($16,397 / 74,706$), demonstrating highly robust predictive capability despite the severe historical data gaps.
+            \end{itemize}
+        \end{itemize}
+    \end{frame}
+
+    \begin{frame}
+        \frametitle{Overcoming Attrition: Custom UK Data Pipelines}
+        To resolve the severe data loss and geographical mismatches of the raw dataset, we built custom Python pipelines to source high-quality, localized UK data directly:
+        
+        \begin{itemize}
+            \item \textbf{Agricultural Data Extraction:} 
+            Developed \texttt{get\_yield.py} to parse official government spreadsheets (\texttt{AUK-chapter7.ods}). The script maps tables to 12 distinct crop categories (e.g., Wheat, Barley, Potatoes) and standardizes calculations to yield in kg/ha.
+            
+            \item \textbf{Meteorological Data Scraping:} 
+            Scraped decades of historical weather data across 36 Met Office stations, explicitly filtering out anomalous stations (e.g., Lerwick) and coercing missing data into safe \texttt{NaN} types.
+            
+            \item \textbf{Robust Aggregation:} 
+            Calculated true yearly averages for temperature, frost days, rainfall, and sun hours, automatically skipping missing values so the final averages are not distorted.
+        \end{itemize}
+    \end{frame}
+
+    \begin{frame}[fragile]
+        \frametitle{Pipeline Execution \& Data Validation}
+        
+        Running our custom extraction scripts successfully bypassed the structural issues in the original dataset, generating a clean, validated baseline for our models.
+        
+        \begin{exampleblock}{Crop Yield Pipeline Output}
+\begin{verbatim}
+$ python3 get_yield.py 
+Loading AUK-chapter7-20250710.ods...
+Processing Table_7_1 -> Cereals
+Processing Table_7_2 -> Wheat
+Processing Table_7_3 -> Barley
+Processing Table_7_4 -> Oats
+Processing Table_7_5 -> Oilseed rape
+Processing Table_7_6 -> Sugar beet
+Processing Table_7_7 -> Protein crops
+Processing Table_7_8 -> Fresh vegetables
+Processing Table_7_9 -> Plants and flowers
+Processing Table_7_10 -> Potatoes
+Processing Table_7_11 -> Fresh fruit
+Processing Table_7_12 -> Linseed
+
+Success! Saved 288 data points to uk_crop_yields_kg.csv
+\end{verbatim}
+        \end{exampleblock}
+    
+    \section{New Data Results}
+    
+        
+    \end{frame}
+
+        \begin{frame}
+        \frametitle{Modeling: XGBoost on Cleaned UK Data}
+        \begin{columns}
+            \begin{column}{0.5\textwidth}
+                \textbf{Dataset \& Strategy}
+                \begin{itemize}
+                    \item \textbf{Shape:} 288 records, 8 features.
+                    \item \textbf{Inputs:} Crop type, Year, and 5 Met Office weather variables.
+                    \item \textbf{Validation:} Strict chronological split to prevent time-series data leakage:
+                    \begin{itemize}
+                        \item \textbf{Train:} 172 rows ($\le$ 2007)
+                        \item \textbf{Test:} 116 rows ($\ge$ 2008)
+                    \end{itemize}
+                \end{itemize}
+            \end{column}
+            
+            \begin{column}{0.5\textwidth}
+                \textbf{Model Performance}
+                \vspace{0.3cm}
+                
+                \begin{block}{Testing Metrics}
+                    \begin{itemize}
+                        \item \textbf{R\textsuperscript{2} Score:} \textbf{0.7041}
+                        \item \textbf{MAE:} \textbf{6,742 kg/ha}
+                    \end{itemize}
+                \end{block}
+                \vspace{0.3cm}
+                \textit{Training logs showed steady RMSE reduction, converging optimally around $\sim$250 boosting rounds without immediate overfitting.}
+            \end{column}
+        \end{columns}
+    \end{frame}
+
+    \begin{frame}
+        \frametitle{XGBoost: Feature Importance Analysis}
+        \begin{columns}
+            \begin{column}{0.45\textwidth}
+                \begin{table}
+                    \centering
+                    \small
+                    \renewcommand{\arraystretch}{1.2}
+                    \begin{tabular}{lr}
+                        \hline
+                        \textbf{Feature} & \textbf{Importance} \\
+                        \hline
+                        \textbf{Crop (encoded)} & 87.49\% \\
+                        \textbf{Year} & 4.72\% \\
+                        Frost Days (\texttt{af\_days}) & 2.06\% \\
+                        Sun Hours (\texttt{sun\_hours}) & 1.83\% \\
+                        Min Temp (\texttt{tmin\_degC}) & 1.69\% \\
+                        Rainfall (\texttt{rain\_mm}) & 1.22\% \\
+                        Max Temp (\texttt{tmax\_degC}) & 0.99\% \\
+                        \hline
+                    \end{tabular}
+                \end{table}
+            \end{column}
+            
+            \begin{column}{0.55\textwidth}
+                \textbf{Key Insights:}
+                \begin{itemize}
+                    \item \textbf{Biological Baseline:} \texttt{Crop} type dominates ($\sim$87.5\%). This is physically expected, as the base mass/yield of different crops (e.g., heavy Sugar Beet vs. light Linseed) varies massively.
+                    \item \textbf{Agri-Tech Progress:} The \texttt{Year} variable (4.7\%) successfully captures historical macro-trends, such as improvements in farming practices and fertilizers.
+                    \item \textbf{Climatic Impact:} Weather conditions account for the remaining $\sim$7.8\%, with frost days and sunlight driving more yield variance than raw rainfall.
+                \end{itemize}
+            \end{column}
+        \end{columns}
+    \end{frame}
+
+    \begin{frame}
+        \frametitle{It's On The Internet!}
+
+        \begin{figure}
+            \qrcode[height=0.35 \linewidth]{https://cropforcaster.vnet.tel/}
+            \caption{\url{https://cropforcaster.vnet.tel/}}
+        \end{figure}
+    \end{frame}
+
+    \begin{frame}[allowframebreaks]
+        \frametitle{References}
+        
+        \printbibliography
+    \end{frame}
+
+\end{document}

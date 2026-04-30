@@ -1,0 +1,22 @@
+FROM python:3.11-slim
+
+ARG COMMIT_ID
+ARG BUILD_TIME
+
+# Set environment variables so the Flask app knows it's inside the CI
+ENV CI_AUTO_BUILD=true
+ENV COMMIT_ID=${COMMIT_ID}
+ENV BUILD_TIME=${BUILD_TIME}
+
+RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+RUN git clone https://github.com/nonbinary-duck/SUSTAINTimeseriesHackathon.git .
+WORKDIR /app/webapp
+
+RUN pip install --no-cache-dir -r requirements.txt
+
+ENV FLASK_RUN_HOST=0.0.0.0
+EXPOSE 5001
+
+CMD ["python", "app.py"]

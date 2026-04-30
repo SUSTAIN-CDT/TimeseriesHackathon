@@ -1,138 +1,551 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>XGBoost Runner</title>
-
-
-  <!-- Imports -->
-  <!-- React:  UI library that automatically updates the page when data changes -->
-  <script src="https://unpkg.com/react@17/umd/react.development.js"></script>
-  <!-- ReactDOM:  part of React that connects to the browser's DO, to let us now the inputs happened  -->
-  <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"></script>
-  <!-- prop-types: required by Recharts, must be loaded before it -->
-  <script src="https://unpkg.com/prop-types@15/prop-types.min.js"></script>
-  <!-- Recharts: pinned to 2.1.16 which is stable with React 17 -->
-  <script src="https://unpkg.com/recharts@2.1.16/umd/Recharts.js"></script>
-  <!-- Babel: lets us write JSX (HTML-like syntax inside JS) without a build step -->
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>🌾 Crop Yield Predictor</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    body    { font-family: sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; background: #f8fafc; color: #1e293b; }
-    button  { padding: 10px 24px; font-size: 16px; background: #2563eb; color: white; border: none; border-radius: 6px; cursor: pointer; }
-    button:disabled { opacity: 0.6; cursor: not-allowed; }
-    .error  { color: red; }
-    .seed-input { width: 80px; margin-right: 12px; padding: 8px; font-size: 16px; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f0f4f8;
+      color: #1a1a2e;
+      min-height: 100vh;
+      padding: 30px 20px;
+    }
+    .container { max-width: 900px; margin: 0 auto; }
+    h1 {
+      font-size: 28px;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+    .subtitle {
+      color: #666;
+      font-size: 15px;
+      margin-bottom: 30px;
+    }
+    .controls {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+      margin-bottom: 24px;
+    }
+    .select-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    label {
+      font-weight: 600;
+      font-size: 13px;
+      color: #333;
+    }
+    select {
+      padding: 8px 12px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      font-size: 14px;
+      min-width: 220px;
+      background: #fff;
+      cursor: pointer;
+    }
+    select:disabled { background: #f5f5f5; cursor: not-allowed; }
+    .card {
+      background: #fff;
+      border-radius: 10px;
+      padding: 24px;
+      margin-bottom: 24px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+    }
+    .card h2 {
+      font-size: 17px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .card-sub {
+      font-size: 13px;
+      color: #999;
+      margin-bottom: 20px;
+    }
+    .placeholder {
+      text-align: center;
+      padding: 60px 20px;
+      color: #aaa;
+      font-size: 16px;
+      background: #fff;
+      border-radius: 10px;
+      border: 2px dashed #e0e0e0;
+    }
+    .error {
+      color: #e53935;
+      background: #ffebee;
+      padding: 10px 14px;
+      border-radius: 6px;
+      margin-bottom: 16px;
+      display: none;
+    }
+    .loading {
+      color: #1976D2;
+      margin-bottom: 16px;
+      display: none;
+    }
+    .stats-row {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 24px;
+    }
+    .stat-box {
+      background: #fff;
+      border-radius: 10px;
+      padding: 16px 24px;
+      flex: 1;
+      min-width: 160px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+      text-align: center;
+    }
+    .stat-box .stat-value {
+      font-size: 22px;
+      font-weight: 700;
+      color: #2196F3;
+    }
+    .stat-box .stat-label {
+      font-size: 12px;
+      color: #999;
+      margin-top: 4px;
+    }
+    canvas { max-height: 350px; }
   </style>
-
 </head>
-
-
 <body>
+<div class="container">
+  <h1>🌾 Crop Yield Predictor</h1>
+  <p class="subtitle">ML-powered yield predictions using temperature, rainfall &amp; historical data</p>
+  
+  <!-- CONTROLS -->
+  <div class="controls">
+    <div class="select-group">
+      <label for="datasetSelect">Dataset Region</label>
+      <select id="datasetSelect">
+        <option value="global">Global (FAO)</option>
+        <option value="uk">United Kingdom (Detailed)</option>
+      </select>
+    </div>
+    <div class="select-group">
+      <label for="countrySelect">Country</label>
+      <select id="countrySelect">
+        <option value="">-- Select Country --</option>
+      </select>
+    </div>
+    <div class="select-group">
+      <label for="cropSelect">Crop</label>
+      <select id="cropSelect" disabled>
+        <option value="">-- Select Crop --</option>
+      </select>
+    </div>
+  </div>
 
-  <!-- React mounts the entire app into this div, see below -->
-  <div id="root"></div>
+  <div class="error" id="errorBox"></div>
+  <div class="loading" id="loadingBox">Loading predictions...</div>
 
-  <!-- type="text/babel" tells Babel to transform this script before the browser runs it -->
-  <script type="text/babel">
+  <!-- STAT BOXES -->
+  <div class="stats-row" id="statsRow" style="display:none;">
+    <div class="stat-box">
+      <div class="stat-value" id="statLatestActual">-</div>
+      <div class="stat-label" id="labelLatestActual">Latest Actual Yield</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-value" id="statLatestPred">-</div>
+      <div class="stat-label" id="labelLatestPred">Latest Predicted Yield</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-value" id="statYears">-</div>
+      <div class="stat-label">Years of Data</div>
+    </div>
+  </div>
 
-    // Pull out the hooks and chart components we need from the loaded libraries
-    const { useState } = React;
-    const { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } = Recharts;
+  <!-- YIELD CHART -->
+  <div class="card" id="yieldCard" style="display:none;">
+    <h2 id="yieldTitle">Actual vs Predicted Yield</h2>
+    <p class="card-sub" id="yieldSub">Yield measured dynamically</p>
+    <canvas id="yieldChart"></canvas>
+  </div>
 
-    function App() {
+  <!-- CLIMATE CHART -->
+  <div class="card" id="climateCard" style="display:none;">
+    <h2 id="climateTitle">Historical Climate Data</h2>
+    <p class="card-sub">Temperature (left axis) vs Rainfall (right axis)</p>
+    <canvas id="climateChart"></canvas>
+  </div>
 
-      // useState holds values that, when changed, cause React to re-render the page
-      // Each returns [currentValue, functionToUpdateIt]
-      const [results, setResults]         = useState([]);    // predictions vs actuals from the model
-      const [importances, setImportances] = useState([]);    // feature importance scores
-      const [loading, setLoading]         = useState(false); // true while waiting for the server
-      const [error, setError]             = useState(null);  // holds an error message if fetch fails
-      const [seed, setSeed]               = useState(42);    // random seed for data generation and model
+  <!-- FEATURE IMPORTANCE CHART -->
+  <div class="card">
+    <h2>What Drives Yield?</h2>
+    <p class="card-sub">XGBoost feature importance scores specific to this dataset</p>
+    <canvas id="featureChart"></canvas>
+  </div>
 
-      // This function runs when the button is clicked
-      // It calls the Flask /run route and stores the response in state
-      async function runModel() {
-        setLoading(true);  // disables the button while running
-        setError(null);    // clear any previous error
-        try {
-          const res  = await fetch(`/run?seed=${seed}`); // call the Flask backend, passing the seed
-          const data = await res.json();           // parse the JSON response
-          setResults(data.results);                // store predictions vs actuals
-          setImportances(data.importances);        // store feature importances
-        } catch (e) {
-          setError("Failed to run model. Is the Flask server running?");
-        } finally {
-          setLoading(false); // re-enable the button whether it succeeded or failed
+  <!-- PLACEHOLDER -->
+  <div class="placeholder" id="placeholder">
+    Select a region, country, and crop above to see predictions
+  </div>
+</div>
+
+<!-- CI FOOTER -->
+{% if show_ci %}
+<div style="background: #f8fafc; border-top: 1px solid #e2e8f0; padding: 15px; margin-top: 40px; text-align: center; color: #64748b; font-size: 13px; position: relative; z-index: 1000;">
+    <strong>System Built at:</strong> {{ build_time }} | 
+    <strong>Commit:</strong> <a href="https://github.com/nonbinary-duck/SUSTAINTimeseriesHackathon/commit/{{ commit_id }}" style="color: #64748b; text-decoration: underline; font-family: monospace;">{{ commit_id[:7] }}</a> | 
+    <a href="/gitbuildstatus/" style="color: #64748b; text-decoration: underline;" target="_blank">View Build Logs</a> 
+    <span id="ci-live-status" style="margin-left: 10px; font-weight: bold; background: #e2e8f0; padding: 4px 8px; border-radius: 4px;">⏳ Checking status...</span>
+</div>
+<script>
+    function checkStatus() {
+        fetch('/gitbuildstatus/api/latest').then(r=>r.json()).then(d=>{
+            const el = document.getElementById('ci-live-status');
+            if (d.commit === '{{ commit_id }}' && d.status === 'Success') {
+                el.innerHTML = '✔ Up to date';
+                el.style.color = '#64748b';
+            } else if (d.status === 'Building') {
+                el.innerHTML = '🔄 New build in progress...';
+                el.style.color = '#d97706';
+            } else {
+                el.innerHTML = '❌ Outdated Build';
+                el.style.color = '#dc2626';
+            }
+        }).catch(e=>console.error(e));
+    }
+    checkStatus();
+    setInterval(checkStatus, 10000);
+</script>
+{% endif %}
+
+<script>
+  const API = window.location.origin;
+  let yieldChartInstance = null;
+  let featureChartInstance = null;
+  let climateChartInstance = null;
+
+  // -----------------------------------------------
+  // UTILITY
+  // -----------------------------------------------
+  function showError(msg) {
+    const box = document.getElementById("errorBox");
+    box.textContent = msg;
+    box.style.display = msg ? "block" : "none";
+  }
+  function showLoading(visible) {
+    document.getElementById("loadingBox").style.display = visible ? "block" : "none";
+  }
+  function clearDashboard() {
+    document.getElementById("yieldCard").style.display = "none";
+    document.getElementById("climateCard").style.display = "none";
+    document.getElementById("statsRow").style.display = "none";
+    document.getElementById("placeholder").style.display = "block";
+    showError("");
+  }
+
+  // -----------------------------------------------
+  // ON PAGE LOAD
+  // -----------------------------------------------
+  window.addEventListener("DOMContentLoaded", async () => {
+    await loadLocations();
+    await loadFeatureImportance();
+  });
+
+  // -----------------------------------------------
+  // REGION CHANGE
+  // -----------------------------------------------
+  document.getElementById("datasetSelect").addEventListener("change", async function () {
+    clearDashboard();
+    await loadLocations();
+    await loadFeatureImportance();
+  });
+
+  // -----------------------------------------------
+  // LOAD COUNTRIES
+  // -----------------------------------------------
+  async function loadLocations() {
+    const dataset = document.getElementById("datasetSelect").value;
+    const res = await fetch(`${API}/api/locations?dataset=${dataset}`);
+    const locations = await res.json();
+    
+    const select = document.getElementById("countrySelect");
+    select.innerHTML = '<option value="">-- Select Country --</option>';
+    
+    locations.forEach(loc => {
+      const opt = document.createElement("option");
+      opt.value = loc;
+      opt.textContent = loc;
+      select.appendChild(opt);
+    });
+
+    const cropSelect = document.getElementById("cropSelect");
+    cropSelect.innerHTML = '<option value="">-- Select Crop --</option>';
+    cropSelect.disabled = true;
+
+    // If UK dataset, automatically select United Kingdom and trigger the crop load
+    if (dataset === "uk" && locations.length === 1) {
+      select.value = locations[0];
+      select.disabled = true; 
+      select.dispatchEvent(new Event("change"));
+    } else {
+      select.disabled = false;
+    }
+  }
+
+  // -----------------------------------------------
+  // COUNTRY CHANGE -> LOAD CROPS
+  // -----------------------------------------------
+  document.getElementById("countrySelect").addEventListener("change", async function () {
+    const area = this.value;
+    const dataset = document.getElementById("datasetSelect").value;
+    const cropSelect = document.getElementById("cropSelect");
+    
+    cropSelect.innerHTML = '<option value="">-- Select Crop --</option>';
+    cropSelect.disabled = !area;
+    clearDashboard();
+    if (!area) return;
+
+    const res = await fetch(`${API}/api/crops?dataset=${dataset}&area=${encodeURIComponent(area)}`);
+    const crops = await res.json();
+    
+    crops.forEach(crop => {
+      const opt = document.createElement("option");
+      opt.value = crop;
+      opt.textContent = crop;
+      cropSelect.appendChild(opt);
+    });
+  });
+
+  // -----------------------------------------------
+  // CROP CHANGE -> LOAD CHART DATA
+  // -----------------------------------------------
+  document.getElementById("cropSelect").addEventListener("change", async function () {
+    const crop = this.value;
+    const area = document.getElementById("countrySelect").value;
+    const dataset = document.getElementById("datasetSelect").value;
+
+    if (!crop || !area) return;
+    
+    showLoading(true);
+    clearDashboard();
+    document.getElementById("placeholder").style.display = "none";
+
+    try {
+      const res = await fetch(
+        `${API}/api/chart-data?dataset=${dataset}&area=${encodeURIComponent(area)}&crop=${encodeURIComponent(crop)}`
+      );
+      const data = await res.json();
+      
+      if (data.error) {
+        showError(data.error);
+        document.getElementById("placeholder").style.display = "block";
+      } else {
+        const unit = data.length > 0 ? data[0].unit : "hg/ha";
+        renderYieldChart(data, area, crop, unit);
+        renderClimateChart(data, area);
+        renderStats(data, unit);
+      }
+    } catch (e) {
+      showError("Could not connect to the backend. Is Flask running?");
+    }
+    showLoading(false);
+  });
+
+  // -----------------------------------------------
+  // RENDER YIELD CHART
+  // -----------------------------------------------
+  function renderYieldChart(data, area, crop, unit) {
+    const card = document.getElementById("yieldCard");
+    card.style.display = "block";
+    
+    document.getElementById("yieldTitle").textContent = `${crop} Yield in ${area} — Actual vs Predicted`;
+    document.getElementById("yieldSub").textContent = `Yield measured in ${unit}`;
+
+    const labels = data.map(d => d.year);
+    const actual = data.map(d => d.actual);
+    const predicted = data.map(d => d.predicted);
+
+    if (yieldChartInstance) yieldChartInstance.destroy();
+    
+    const ctx = document.getElementById("yieldChart").getContext("2d");
+    yieldChartInstance = new Chart(ctx, {
+      type: "line",
+      data: {
+        labels,
+        datasets: [
+          {
+            label: "Actual",
+            data: actual,
+            borderColor: "#2196F3",
+            backgroundColor: "rgba(33,150,243,0.08)",
+            borderWidth: 2,
+            pointRadius: 4,
+            tension: 0.3
+          },
+          {
+            label: "Predicted",
+            data: predicted,
+            borderColor: "#FF5722",
+            backgroundColor: "rgba(255,87,34,0.08)",
+            borderWidth: 2,
+            borderDash: [6, 3],
+            pointRadius: 4,
+            tension: 0.3
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { position: "top" },
+          tooltip: {
+            callbacks: {
+              label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y.toLocaleString()} ${unit}`
+            }
+          }
+        },
+        scales: {
+          y: {
+            ticks: {
+              callback: v => (v / 1000).toFixed(0) + "k"
+            }
+          }
         }
       }
+    });
+  }
 
-      // JSX this looks like HTML but is transformed by Babel into JavaScript (blah blah blah)
-      // React re-renders this whenever there is a state change
-      return (
-        <div>
-          <h1>XGBoost Model Runner</h1>
-          <p>Trains an XGBoost regressor on synthetic data and plots the results.</p>
+  // -----------------------------------------------
+  // RENDER CLIMATE CHART
+  // -----------------------------------------------
+  function renderClimateChart(data, area) {
+    const card = document.getElementById("climateCard");
+    card.style.display = "block";
+    document.getElementById("climateTitle").textContent = `Historical Climate Data for ${area}`;
+    
+    const labels = data.map(d => d.year);
+    const temps  = data.map(d => d.avg_temp);
+    const rains  = data.map(d => d.rainfall);
 
-          {/* Number input — onChange updates the seed state as the user types */}
-          <label>
-            Seed: <input
-              type="number"
-              value={seed}
-              onChange={e => setSeed(e.target.value)}
-              className="seed-input"
-            />
-          </label>
+    if (climateChartInstance) climateChartInstance.destroy();
+    const ctx = document.getElementById("climateChart").getContext("2d");
+    
+    climateChartInstance = new Chart(ctx, {
+      type: "line",
+      data: {
+        labels,
+        datasets: [
+          {
+            label: "Avg Temperature (°C)",
+            data: temps,
+            borderColor: "#E91E63",
+            backgroundColor: "rgba(233, 30, 99, 0.08)",
+            yAxisID: "y-temp",
+            borderWidth: 2,
+            pointRadius: 4,
+            tension: 0.3
+          },
+          {
+            label: "Rainfall (mm/year)",
+            data: rains,
+            borderColor: "#00BCD4",
+            backgroundColor: "rgba(0, 188, 212, 0.08)",
+            yAxisID: "y-rain",
+            borderWidth: 2,
+            borderDash: [6, 3],
+            pointRadius: 4,
+            tension: 0.3
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        interaction: { mode: 'index', intersect: false },
+        plugins: { legend: { position: "top" } },
+        scales: {
+          "y-temp": {
+            type: "linear",
+            position: "left",
+            title: {
+              display: true,
+              text: "Temperature (°C)",
+              color: "#E91E63",
+              font: { weight: 'bold' }
+            }
+          },
+          "y-rain": {
+            type: "linear",
+            position: "right",
+            title: {
+              display: true,
+              text: "Rainfall (mm)",
+              color: "#00BCD4",
+              font: { weight: 'bold' }
+            },
+            grid: { drawOnChartArea: false }
+          }
+        }
+      }
+    });
+  }
 
-          {/* onClick wires the button to runModel(); disabled prevents double-clicking */}
-          <button onClick={runModel} disabled={loading}>
-            {loading ? "Running..." : "Run Model"}
-          </button>
+  // -----------------------------------------------
+  // RENDER STAT BOXES
+  // -----------------------------------------------
+  function renderStats(data, unit) {
+    const latest = data[data.length - 1];
+    
+    document.getElementById("statLatestActual").textContent = latest.actual.toLocaleString();
+    document.getElementById("statLatestPred").textContent = latest.predicted.toLocaleString();
+    
+    document.getElementById("labelLatestActual").textContent = `Latest Actual Yield (${unit})`;
+    document.getElementById("labelLatestPred").textContent = `Latest Predicted Yield (${unit})`;
+    
+    document.getElementById("statYears").textContent = data.length;
+    document.getElementById("statsRow").style.display = "flex";
+  }
 
-          {/* Only renders the error message if error is not null */}
-          {error && <p className="error">{error}</p>}
+  // -----------------------------------------------
+  // RENDER FEATURE IMPORTANCE CHART
+  // -----------------------------------------------
+  async function loadFeatureImportance() {
+    const dataset = document.getElementById("datasetSelect") ? document.getElementById("datasetSelect").value : "global";
+    const res  = await fetch(`${API}/api/feature-importance?dataset=${dataset}`);
+    const data = await res.json();
+    
+    const labels = data.map(d => d.feature);
+    const importance = data.map(d => (d.importance * 100).toFixed(1));
 
-          {/* Only renders the charts once results have been loaded */}
-          {results.length > 0 && (
-            <div>
-
-              <h2>Predictions vs Actuals</h2>
-              {/* ResponsiveContainer makes the chart fill its parent width */}
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={results}>
-                  <CartesianGrid strokeDasharray="3 3" />  {/* background grid */}
-                  <XAxis dataKey="index" />                {/* x axis uses the "index" field */}
-                  <YAxis />
-                  <Tooltip />                              {/* shows values on hover */}
-                  <Legend />                               {/* colour key */}
-                  {/* dataKey matches the field names returned by Flask */}
-                  <Line type="monotone" dataKey="actual"    stroke="#2563eb" dot={false} strokeWidth={2} />
-                  <Line type="monotone" dataKey="predicted" stroke="#f97316" dot={false} strokeWidth={2} />
-                </LineChart>
-              </ResponsiveContainer>
-
-              <h2>Feature Importances</h2>
-              <ResponsiveContainer width="100%" height={240}>
-                <BarChart data={importances}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="feature" />              {/* x axis uses the "feature" field */}
-                  <YAxis />
-                  <Tooltip />
-                  <Bar dataKey="importance" fill="#2563eb" />
-                </BarChart>
-              </ResponsiveContainer>
-
-            </div>
-            
-            
-          )}
-
-        </div>
-        
-      );
-    }
-
-    // Mount the App component into the <div id="root"> above
-    ReactDOM.render(<App />, document.getElementById("root"));
-  </script>
+    if (featureChartInstance) featureChartInstance.destroy();
+    
+    const ctx = document.getElementById("featureChart").getContext("2d");
+    featureChartInstance = new Chart(ctx, {
+      type: "bar",
+      data: {
+        labels,
+        datasets: [{
+          label: "Importance (%)",
+          data: importance,
+          backgroundColor: ["#4CAF50", "#2196F3", "#FF9800", "#9C27B0", "#F44336", "#00BCD4", "#E91E63"],
+          borderRadius: 5
+        }]
+      },
+      options: {
+        indexAxis: "y",
+        responsive: true,
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: ctx => `${ctx.parsed.x}%` } }
+        },
+        scales: {
+          x: { ticks: { callback: v => v + "%" } }
+        }
+      }
+    });
+  }
+</script>
 </body>
 </html>
